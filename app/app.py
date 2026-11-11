@@ -198,8 +198,9 @@ with flik_oversikt:
             fig = px.line(tid, x="manad", y="antal", color="arendetyp", markers=True,
                           color_discrete_sequence=px.colors.qualitative.Safe)
             fig.update_traces(hovertemplate="%{x|%b %Y}<br>%{y:,} klagomål<extra></extra>")
+            fig.update_yaxes(rangemode="tozero")
             fig.update_layout(xaxis_title=None, yaxis_title="Antal klagomål",
                               legend=dict(orientation="h", y=-0.15))
             st.plotly_chart(snygga_till(fig, hojd=420))
-            
+
             

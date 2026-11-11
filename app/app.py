@@ -2,15 +2,17 @@ import re
 from pathlib import Path
 
 import joblib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import streamlit as st
-from matplotlib.ticker import PercentFormatter
 
 RESURSER = Path(__file__).parent / "resurser"
+ACCENT = "#1F6F78"
+GRA = "#B8C4CA"
+ROD = "#C0392B"
 
-st.set_page_config(page_title="Ärendetyper i kundklagomål", layout="wide")
+st.set_page_config(page_title="Ärendetyper i kundklagomål", page_icon="📨", layout="wide")
 
 
 # ---------- Förbehandling (samma som i 01_eda.ipynb) ----------
@@ -42,6 +44,20 @@ def ladda_data():
     return agg, exempel, exempel_lsa
 
 
+def snygga_till(fig, hojd=480):
+    fig.update_layout(
+        height=hojd,
+        margin=dict(l=0, r=10, t=50, b=10),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(size=13),
+        legend_title_text="",
+    )
+    fig.update_xaxes(showgrid=True, gridcolor="#EEF1F2", zeroline=False)
+    fig.update_yaxes(showgrid=False)
+    return fig
+
+
 vec, lsa, km, klusternamn, nyckelord = ladda_modell()
 agg, exempel, exempel_lsa = ladda_data()
 
@@ -63,42 +79,50 @@ with flik_sortera:
     if "text" not in st.session_state:
         st.session_state.text = ""
 
-    if st.button("Hämta ett slumpmässigt exempel"):
-        st.session_state.text = exempel["Consumer complaint narrative"].sample(1).iloc[0]
+    vanster, hoger = st.columns([3, 2], gap="large")
 
-    st.text_area("Klistra in ett klagomål (på engelska)", key="text", height=200)
+    with vanster:
+        if st.button("Hämta ett slumpmässigt exempel"):
+            st.session_state.text = exempel["Consumer complaint narrative"].sample(1).iloc[0]
+        st.text_area("Klistra in ett klagomål (på engelska)", key="text", height=260)
+        sortera = st.button("Sortera", type="primary", use_container_width=True)
 
-    if st.button("Sortera", type="primary"):
-        ren = rensa_text(st.session_state.text)
-
-        if len(ren.split()) < 10:
-            st.warning("Skriv minst tio ord. Modellen tränades på klagomål med minst tio ord.")
+    with hoger:
+        if not sortera:
+            st.info("Klistra in ett klagomål eller hämta ett exempel, och klicka på **Sortera**.")
         else:
-            vektor = lsa.transform(vec.transform([ren]))
-            avstand = km.transform(vektor)[0]          # avstånd till varje klustercentrum
-            ordning = avstand.argsort()
-            typ = klusternamn[ordning[0]]
-            nast = klusternamn[ordning[1]]
+            ren = rensa_text(st.session_state.text)
+            if len(ren.split()) < 10:
+                st.warning("Skriv minst tio ord. Modellen tränades på klagomål med minst tio ord.")
+            else:
+                vektor = lsa.transform(vec.transform([ren]))
+                ordning = km.transform(vektor)[0].argsort()
+                typ = klusternamn[ordning[0]]
+                nast = klusternamn[ordning[1]]
+                andel = per_typ.loc[typ, "andel_hjalp"]
 
-            st.subheader(typ)
-            st.write(f"Näst närmaste ärendetyp: *{nast}*")
-            st.write("**Utmärkande ord för ärendetypen:** " + ", ".join(nyckelord[typ]))
+                with st.container(border=True):
+                    st.caption("ÄRENDETYP")
+                    st.subheader(typ)
+                    st.caption(f"Näst närmast: {nast}")
+                    st.markdown(" ".join(f"`{o}`" for o in nyckelord[typ]))
 
-            andel = per_typ.loc[typ, "andel_hjalp"]
-            st.metric(
-                "Andel kunder med denna ärendetyp som fick hjälp",
-                f"{andel:.0%}",
-                f"{(andel - snitt) * 100:+.1f} procentenheter jämfört med alla ärenden",
-            )
+                with st.container(border=True):
+                    st.metric(
+                        "Andel kunder med denna ärendetyp som fick hjälp",
+                        f"{andel:.0%}",
+                        f"{(andel - snitt) * 100:+.1f} procentenheter mot snittet ({snitt:.0%})",
+                    )
 
-            st.markdown("**Liknande klagomål**")
-            likhet = exempel_lsa @ vektor[0]           # cosinuslikhet (vektorerna är normaliserade)
-            kandidater = [i for i in likhet.argsort()[::-1] if likhet[i] < 0.999][:3]
-            for i in kandidater:
-                rad = exempel.iloc[i]
-                hjalp = "fick hjälp" if rad["fick_hjalp"] == 1 else "fick inte hjälp"
-                with st.expander(f"{rad['arendetyp']} · {rad['Product']} · {hjalp} · likhet {likhet[i]:.2f}"):
-                    st.write(rad["Consumer complaint narrative"][:2000])
+    if sortera and len(rensa_text(st.session_state.text).split()) >= 10:
+        st.markdown("#### Liknande klagomål")
+        likhet = exempel_lsa @ vektor[0]           # cosinuslikhet (vektorerna är normaliserade)
+        kandidater = [i for i in likhet.argsort()[::-1] if likhet[i] < 0.999][:3]
+        for i in kandidater:
+            rad = exempel.iloc[i]
+            hjalp = "✅ fick hjälp" if rad["fick_hjalp"] == 1 else "❌ fick inte hjälp"
+            with st.expander(f"{rad['arendetyp']}  ·  {rad['Product']}  ·  {hjalp}  ·  likhet {likhet[i]:.2f}"):
+                st.write(rad["Consumer complaint narrative"][:2000])
 
 # ---------- Flik 2: översikt ----------
 with flik_oversikt:
@@ -120,45 +144,62 @@ with flik_oversikt:
     if data.empty:
         st.info("Inga klagomål för det här urvalet.")
     else:
-        m1, m2 = st.columns(2)
-        m1.metric("Antal klagomål", f"{data['antal'].sum():,}".replace(",", " "))
-        m2.metric("Andel som fick hjälp", f"{data['fick_hjalp'].sum() / data['antal'].sum():.1%}")
+        m1, m2, m3 = st.columns(3)
+        with m1.container(border=True):
+            st.metric("Antal klagomål", f"{data['antal'].sum():,}".replace(",", " "))
+        with m2.container(border=True):
+            st.metric("Andel som fick hjälp", f"{data['fick_hjalp'].sum() / data['antal'].sum():.1%}")
+        with m3.container(border=True):
+            st.metric("Ärendetyper i urvalet", data["arendetyp"].nunique())
 
-        typ_data = data.groupby("arendetyp")[["antal", "fick_hjalp"]].sum()
+        typ_data = data.groupby("arendetyp")[["antal", "fick_hjalp"]].sum().reset_index()
         typ_data["andel"] = typ_data["fick_hjalp"] / typ_data["antal"]
 
         g1, g2 = st.columns(2)
 
-        fig, ax = plt.subplots(figsize=(6, 6))
-        typ_data["antal"].sort_values().plot.barh(ax=ax, color="tab:blue")
-        ax.set_title("Antal klagomål per ärendetyp")
-        ax.set_ylabel("")
-        plt.tight_layout()
-        g1.pyplot(fig)
+        # Antal per ärendetyp
+        antal_sorterad = typ_data.sort_values("antal")
+        fig = px.bar(antal_sorterad, x="antal", y="arendetyp", orientation="h",
+                     title="Antal klagomål per ärendetyp")
+        fig.update_traces(marker_color=ACCENT,
+                          hovertemplate="%{y}<br>%{x:,} klagomål<extra></extra>")
+        fig.update_layout(xaxis_title=None, yaxis_title=None)
+        g1.plotly_chart(snygga_till(fig))
 
-        visa = typ_data[typ_data["antal"] >= 30]
-        fig, ax = plt.subplots(figsize=(6, 6))
-        visa["andel"].sort_values().plot.barh(ax=ax, color="tab:green")
-        ax.axvline(snitt, color="red", linestyle="--", label="Snitt, alla ärenden")
-        ax.xaxis.set_major_formatter(PercentFormatter(1))
-        ax.set_title("Andel som fick hjälp per ärendetyp")
-        ax.set_ylabel("")
-        ax.legend()
-        plt.tight_layout()
-        g2.pyplot(fig)
+        # Andel som fick hjälp, färgad efter över/under snittet
+        visa = typ_data[typ_data["antal"] >= 30].sort_values("andel").copy()
+        visa["jamfort"] = np.where(visa["andel"] >= snitt, "Över snittet", "Under snittet")
+        fig = px.bar(visa, x="andel", y="arendetyp", orientation="h", color="jamfort",
+                     color_discrete_map={"Över snittet": ACCENT, "Under snittet": GRA},
+                     custom_data=["antal"], title="Andel som fick hjälp per ärendetyp")
+        fig.update_traces(hovertemplate="%{y}<br>%{x:.1%} fick hjälp<br>%{customdata[0]:,} klagomål<extra></extra>")
+        fig.add_vline(x=snitt, line_dash="dash", line_color=ROD,
+                      annotation_text=f"Snitt {snitt:.0%}", annotation_position="top")
+        fig.update_xaxes(tickformat=".0%")
+        fig.update_yaxes(categoryorder="array", categoryarray=list(visa["arendetyp"]))
+        fig.update_layout(xaxis_title=None, yaxis_title=None,
+                          legend=dict(orientation="h", y=-0.08))
+        g2.plotly_chart(snygga_till(fig))
         g2.caption("Visar endast ärendetyper med minst 30 klagomål i urvalet.")
 
-        st.markdown("**Utveckling över tid**")
+        # Utveckling över tid
+        st.markdown("#### Utveckling över tid")
         valda = st.multiselect(
-            "Ärendetyper",
-            sorted(typ_data.index),
-            default=list(typ_data["antal"].nlargest(3).index),
+            "Välj ärendetyper",
+            sorted(typ_data["arendetyp"]),
+            default=list(typ_data.nlargest(3, "antal")["arendetyp"]),
         )
         if valda:
             tid = (
                 data[data["arendetyp"].isin(valda)]
-                .pivot_table(index="manad", columns="arendetyp", values="antal", aggfunc="sum")
-                .fillna(0)
+                .groupby(["manad", "arendetyp"])["antal"].sum()
+                .reset_index()
             )
-            st.line_chart(tid)
+            fig = px.line(tid, x="manad", y="antal", color="arendetyp", markers=True,
+                          color_discrete_sequence=px.colors.qualitative.Safe)
+            fig.update_traces(hovertemplate="%{x|%b %Y}<br>%{y:,} klagomål<extra></extra>")
+            fig.update_layout(xaxis_title=None, yaxis_title="Antal klagomål",
+                              legend=dict(orientation="h", y=-0.15))
+            st.plotly_chart(snygga_till(fig, hojd=420))
+            
             

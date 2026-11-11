@@ -1,43 +1,57 @@
-# Automatisk upptäckt av ärendetyper i kundklagomål
+# Customer Complaint Case Types
 
-Individuellt projekt i kursen Statistisk programmering och maskininlärning.
+Individual project in the course *Statistical Programming and Machine Learning*.
+
+**Live app:** [https://customer-complaint-case-types.streamlit.app/](https://customer-complaint-case-types.streamlit.app/)
 
 ## Problem
 
-Företag får tusentals kundklagomål i fritext. För att kunna bemanna rätt, utbilda personal och sortera ärenden behöver man veta vilka typer av ärenden som kommer in, men det finns sällan tid att läsa och märka upp texterna manuellt.
+Companies receive thousands of customer complaints as free text. To staff correctly, train employees and route cases, they need to know what types of cases are coming in, but there is rarely time to read and label the texts manually.
 
-**Affärsfråga:** Kan vi med unsupervised learning hitta naturliga ärendetyper i kunders klagomålstexter, utan manuell märkning, och identifiera vilka ärendetyper som oftare leder till att kunden får hjälp?
+**Business question:** Can unsupervised learning find natural case types in customer complaints, without manual labelling, and identify which case types more often lead to the customer receiving relief?
 
-## Resultat i korthet
+## Key findings
 
-- **K-means** delade in drygt 100 000 klagomål i **14 ärendetyper**, flera av dem på tvärs av myndighetens egna produktkategorier.
-- Chansen att få hjälp skiljer sig tydligt mellan ärendetyperna: **störst** för obehöriga kortdebiteringar (30 %), **minst** för bolån (4 %).
-- Klagomål som hänvisar till lagparagrafer, ofta i mallform, leder **sällan** till hjälp (11 %).
-- En topp i januari 2023 sammanfaller med CFPB:s beslut mot Wells Fargo i december 2022.
-- Tre metoder jämfördes: **K-means, LDA och HDBSCAN**. K-means valdes eftersom den bäst hittar nya ärendetyper, ger alla klagomål en ärendetyp och kan sortera in nya klagomål.
+- **K-means** grouped 101,373 complaints into **14 case types**, several of which cut across the regulator's own product categories.
+- The chance of receiving relief differs clearly between case types: **highest** for unauthorized card charges (30 %), **lowest** for mortgages (4 %).
+- Complaints citing laws, often written from templates, **rarely** lead to relief (11 %).
+- A spike in January 2023 coincides with the CFPB's order against Wells Fargo in December 2022.
+- Three methods were compared: **K-means, LDA and HDBSCAN**. K-means was chosen because it best finds new case types, assigns every complaint a case type and can classify new complaints.
+
+## The app
+
+The app has three tabs:
+- **Classify a complaint:** paste a complaint and get its case type, keywords, relief rate and similar complaints.
+- **Overview:** complaints and relief rates per case type, a heatmap of case type by product, and trends over time, filterable by product and company.
+- **About the case types:** a description of all 14 case types and a non-technical explanation of the model.
+
+To run the app locally (no data download needed, the model and summary data are included in `app/resurser/`):
+```
+streamlit run app/app.py
+```
 
 ## Data
 
-**Källa:** [CFPB Consumer Complaint Database – Narratives Archive](https://www.consumerfinance.gov/foia-requests/foia-electronic-reading-room/cfpb-consumer-complaint-database-narratives-archive/), den amerikanska konsumentskyddsmyndighetens öppna databas över klagomål på finansiella produkter.
+**Source:** [CFPB Consumer Complaint Database – Narratives Archive](https://www.consumerfinance.gov/foia-requests/foia-electronic-reading-room/cfpb-consumer-complaint-database-narratives-archive/), the US Consumer Financial Protection Bureau's open database of complaints about financial products.
 
-Datan finns inte i repot på grund av storleken. Så här hämtar du den:
+The data is not included in the repository due to its size. To run the notebooks:
 
-1. Ladda ner **CCDB Export November 2022 through August 2023** från länken ovan.
-2. Lägg zip-filen i mappen `data/`. Den ska **inte** packas upp.
+1. Download **CCDB Export November 2022 through August 2023** from the link above.
+2. Place the zip file in the `data/` folder. Do **not** unzip it.
 
-Filen heter `CCDB_Export_4_November_2022_through_August_2023.zip`. Datan hämtades 2026-11-02.
+The file is named `CCDB_Export_4_November_2022_through_August_2023.zip`. Data retrieved 2026-11-02.
 
 ## Installation
 
-Kräver Python 3.10 eller senare.
+Requires Python 3.10 or later.
 
-1. Klona repot:
+1. Clone the repository:
    ```
    git clone https://github.com/fridapaulina/customer-complaint-clustering.git
    cd customer-complaint-clustering
    ```
 
-2. Skapa och aktivera en virtuell miljö:
+2. Create and activate a virtual environment:
    ```
    python -m venv .venv
    source .venv/Scripts/activate    # Windows (Git Bash)
@@ -45,53 +59,53 @@ Kräver Python 3.10 eller senare.
    source .venv/bin/activate        # Mac/Linux
    ```
 
-3. Installera paketen:
+3. Install the packages:
    ```
    pip install -r requirements.txt
    ```
 
-`04_hdbscan.ipynb` laddar första gången ner embedding-modellen `all-MiniLM-L6-v2` (ca 90 MB) från Hugging Face.
+`04_hdbscan.ipynb` downloads the embedding model `all-MiniLM-L6-v2` (about 90 MB) from Hugging Face the first time it runs.
 
 ## Notebooks
 
-Kör notebooks i ordning. Varje notebook sparar sitt resultat i `data/` och nästa läser in det.
+The notebooks are written in Swedish. Run them in order: each notebook saves its results to `data/` and the next one reads them.
 
-| Notebook | Innehåll | Ungefärlig körtid |
+| Notebook | Content | Approx. run time |
 |---|---|---|
-| `01_eda.ipynb` | Inläsning, rensning, EDA och statistiska tester | Några minuter |
-| `02_kmeans.ipynb` | TF-IDF, LSA, val av antal kluster, K-means, namngivning, chi²-test | 5–10 min |
-| `03_lda.ipynb` | Bag of Words och topic modelling med LDA, jämförelse med K-means | 5–10 min |
-| `04_hdbscan.ipynb` | Embeddings, UMAP och HDBSCAN på 20 000 klagomål, jämförelse av alla metoder | 10–20 min första gången |
-| `05_jamforelse.ipynb` | Val av metod, tolkning med beslutsträd, slutsatser | Några minuter |
+| `01_eda.ipynb` | Loading, cleaning, EDA and statistical tests | A few minutes |
+| `02_kmeans.ipynb` | TF-IDF, LSA, choosing the number of clusters, K-means, naming, chi² test, saving the model for the app | 5–10 min |
+| `03_lda.ipynb` | Bag of Words and topic modelling with LDA, comparison with K-means | 5–10 min |
+| `04_hdbscan.ipynb` | Embeddings, UMAP and HDBSCAN on 20,000 complaints, comparison of all methods | 10–20 min first time |
+| `05_jamforelse.ipynb` | Choice of method, interpretation with a decision tree, conclusions | A few minutes |
 
-## Metoder
+## Methods
 
-- **Förbehandling:** textrensning (maskering, belopp, skiljetecken), egna stoppord (företagsnamn, allmänna klagomålsord)
+- **Preprocessing:** text cleaning (masking, amounts, punctuation), custom stop words (company names, generic complaint words)
 - **Representation:** TF-IDF, LSA (TruncatedSVD), Bag of Words, sentence embeddings
-- **Klustring:** K-means, LDA, UMAP + HDBSCAN
-- **Utvärdering:** silhouette score, elbow-metoden, Adjusted Rand Index, manuell granskning
-- **Statistik:** Mann-Whitney U, chi²-test med Cramér's V
-- **Tolkning:** beslutsträd med feature importance
+- **Clustering:** K-means, LDA, UMAP + HDBSCAN
+- **Evaluation:** silhouette score, elbow method, Adjusted Rand Index, manual review
+- **Statistics:** Mann-Whitney U, chi² test with Cramér's V
+- **Interpretation:** decision tree with feature importance
 
-## Projektstruktur
+## Project structure
 
 ```
 customer-complaint-clustering/
-├── data/            ← datafiler (ingår inte i repot)
-├── notebooks/       ← 01–05, körs i ordning
-├── app/             ← Streamlit-app
+├── .streamlit/config.toml   ← app theme
+├── app/
+│   ├── app.py               ← Streamlit app
+│   ├── requirements.txt     ← packages for the app only (used by Streamlit Cloud)
+│   └── resurser/            ← trained model and summary data
+├── data/                    ← data files (not in the repository)
+├── notebooks/               ← 01–05, run in order
 ├── README.md
-└── requirements.txt
+└── requirements.txt         ← packages for the whole project
 ```
 
-## App
+## Limitations
 
-*Kommer.*
+- Only complaints where the consumer chose to publish their text are included (39 %).
+- The data covers US financial products, November 2022 – August 2023. Credit reporting complaints were excluded.
+- "Received relief" shows how the company closed the case, not whether the customer was actually right.
 
-## Begränsningar
-
-- Endast klagomål där konsumenten valt att publicera sin text ingår (39 %).
-- Datan gäller amerikanska finansiella produkter, november 2022 – augusti 2023. Kreditupplysningsklagomål är borttagna.
-- Utfallsvariabeln visar hur företaget avslutade ärendet, inte om kunden faktiskt hade rätt.
-
-Se `05_jamforelse.ipynb` för fullständiga slutsatser och begränsningar.
+See `05_jamforelse.ipynb` for full conclusions and limitations.

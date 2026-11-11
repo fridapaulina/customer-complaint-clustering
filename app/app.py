@@ -274,24 +274,24 @@ with tab_overview:
 # ---------- Tab 3: about the case types ----------
 with tab_about:
     st.markdown("#### The 14 case types")
-    about = pd.DataFrame({
-        "Case type": per_type.index,
-        "Description": [DESCRIPTIONS[t] for t in per_type.index],
-        "Keywords": [", ".join(keywords[t][:6]) for t in per_type.index],
-        "Complaints": per_type["antal"].values,
-        "Received relief": (per_type["help_rate"] * 100).values,
-    }).sort_values("Complaints", ascending=False)
+    st.caption("Sorted by number of complaints. The arrow shows the relief rate compared with the average for all complaints.")
 
-    st.dataframe(
-        about,
-        hide_index=True,
-        use_container_width=True,
-        column_config={
-            "Description": st.column_config.TextColumn(width="large"),
-            "Complaints": st.column_config.NumberColumn(format="%d"),
-            "Received relief": st.column_config.ProgressColumn(format="%.0f%%", min_value=0, max_value=50),
-        },
-    )
+    order_types = per_type.sort_values("antal", ascending=False).index
+    columns = st.columns(2, gap="medium")
+
+    for n, case_type in enumerate(order_types):
+        rate = per_type.loc[case_type, "help_rate"]
+        with columns[n % 2].container(border=True):
+            st.markdown(f"**{case_type}**")
+            st.write(DESCRIPTIONS[case_type])
+            st.markdown(" ".join(f"`{w}`" for w in keywords[case_type][:6]))
+            k1, k2 = st.columns(2)
+            k1.metric("Complaints", f"{per_type.loc[case_type, 'antal']:,}")
+            k2.metric(
+                "Received relief",
+                f"{rate:.0%}",
+                f"{(rate - average) * 100:+.1f} pp vs. average",
+            )
 
     with st.expander("How does the model work?", expanded=True):
         st.markdown(
@@ -312,7 +312,3 @@ closest one. It also shows the second closest group, since many complaints are a
   the customer was actually right.
 """
         )
-        
-
-
-            
